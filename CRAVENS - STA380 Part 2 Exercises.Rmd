@@ -1,0 +1,40 @@
+---
+title: 'CRAVENS - Part 2: Excercies'
+author: "Conoly Cravens (mcc4443)"
+date: "8/3/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# **Question 1** Visual Story Telling Part 1: *Green Buildings*
+```{r, TITLE, echo=FALSE}
+
+```
+
+# **Question 2** Visual Story Telling Part 2: *Flights at ABIA*
+```{r, TITLE, echo=FALSE}
+
+```
+
+# **Question 3** Portfolio Modeling
+```{r, TITLE, echo=FALSE}
+
+```
+
+# **Question 4** Market Segmentation
+```{r, TITLE, echo=FALSE}
+
+```
+
+# **Question 5** Author Attribution
+```{r, TITLE, echo=FALSE}
+
+```
+
+# **Question 6 ** Association Rule Mining
+```{r, TITLE, echo=FALSE}
+
+```
