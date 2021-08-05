@@ -10,31 +10,270 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # **Question 1** Visual Story Telling Part 1: *Green Buildings*
+
 ```{r, TITLE, echo=FALSE}
 
 ```
 
 # **Question 2** Visual Story Telling Part 2: *Flights at ABIA*
+
 ```{r, TITLE, echo=FALSE}
 
 ```
 
 # **Question 3** Portfolio Modeling
-```{r, TITLE, echo=FALSE}
+
+```{r, document setup, echo=FALSE, include=FALSE}
+rm(list = ls())
+library(mosaic)
+library(quantmod)
+library(foreach)
+```
+
+We assessed three different portfolios VaR:
+
+* Income Focused Portfolio
+- A portfolio made up of *5 EFTs* with high dividend payout. 
+* Tech Portfolio
+- A portfolio made up of *5 EFTs* focused on technology equities.
+- As a reminder, the tech industry is very volatile.
+* Balanced Portfolio 
+- A portfolio made up of *7 EFTs* focused on balanced and diversification. 
+
+```{r,Portfolio Fixed Values, echo=FALSE, include=FALSE}
+n_days = 20
+initial_wealth = 100000
+```
+
+## Income Focused Portfolio
+The five EFTs: 
+
+* **SDIV** {Global Equities} - offer exposure to a basket of dividend-paying equities on  a global scale
+* **YLD** {High Yield Bonds} - provide “current income with diversified risk” by investing in companies with a “defensive quality bias.”
+* **IJJ** {Mid Cap Value Equities} - exposure to mid-cap stocks that exhibit value characteristics and fine tune their domestic equity exposure
+* **REZ** {Real Estate} – known for distributing 90% of their income to investors
+* **SPYD** {Large Cap Blend Equities} – top 80 dividend-yielding companies in the S&P 500 
+
+```{r,Income Bootstrap, echo=FALSE, include=FALSE}
+# Import EFTs in income portfolio
+incomeStocks = c("SDIV","YLD","IJJ","REZ","SPYD")
+getSymbols(incomeStocks,
+           from = "2016-08-01",
+           to= "2021-07-30")
+
+# Adjust all stocks in income driven portfolio and add an 'a' on the end
+for(ticker in incomeStocks) {
+  expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+  eval(parse(text=expr))}
+
+# Combine all the returns in a matrix
+income_returns = cbind(ClCl(SDIVa),
+                       ClCl(YLDa),
+                       ClCl(IJJa),
+                       ClCl(REZa),
+                       ClCl(SPYDa))
+income_returns = as.matrix(na.omit(income_returns))
+
+# Bootstrap 5,000 different 4-week trading periods:
+set.seed(100)
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
+  holdings = weights * total_wealth
+  wealthtrackerIncome = rep(0, n_days)
+  for(today in 1:n_days) {
+    returnI.today = resample(income_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*returnI.today
+    total_wealth = sum(holdings)
+    wealthtrackerIncome[today] = total_wealth
+    holdings = weights * total_wealth   #rebalance!
+  }
+  wealthtrackerIncome
+}
 
 ```
 
+
+A quick glimpse of the profit/loss histogram for the 5,000 bootstrap samples:
+
+```{r,Income profit loss, echo=FALSE}
+hist(sim1[,n_days]- initial_wealth, breaks=30,
+     main = 'Profit/ Loss Histogram',
+     xlab = 'Profit/ Loss',
+     col = 'green')
+```
+Using the 5,000 bootstrap samples, we estimate the the 4-week value at risk for the *income driven portfolio* at the 5% level to: 
+
+```{r,Income VaR, echo=FALSE}
+# 5% value at risk:
+incomeVaR = quantile(sim1[,n_days]- initial_wealth, prob=0.05)
+#Format VaR
+incomeVaR.format = paste0("$", formatC(as.numeric(abs(incomeVaR)), format="f", digits=0, big.mark=","))
+incomeVaR.format
+```
+## Tech Portfolio
+
+* **SPYG** {Large Gap Growth Equities} - over 300 holdings and exposure is tilted most heavily towards technology
+* **QQQ** {Large Gap Growth Equities} - useful as part of a buy-and-hold approach for investors looking to maintain a tilt towards the potentially volatile tech sector
+* **XLK** {Technology Equities} - it invests in companies from all across the technology sector
+* **TDIV** {Technology Equities} - First Trust NASDAQ Technology Dividend Index Fund
+* **FXL** {Technology Equities} - looking for a more qualitative approach to the tech sector
+
+```{r,Tech Bootstrap, echo=FALSE, include=FALSE}
+#Import EFTs in tech portfolio
+techStocks = c("SPYG","QQQ","XLK","TDIV","FXL")
+getSymbols(techStocks,
+           from = "2016-08-01",
+           to= "2021-07-30")
+
+
+# Adjust all stocks in the tech  portfolio and add an 'a' on the end
+for(ticker in techStocks) {
+  expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+  eval(parse(text=expr))}
+
+# Combine all the returns in a matrix
+tech_returns = cbind(ClCl(SPYGa),
+                     ClCl(QQQa),
+                     ClCl(XLKa),
+                     ClCl(TDIVa),
+                     ClCl(FXLa))
+
+tech_returns = as.matrix(na.omit(tech_returns))
+
+# Bootstrap 5,000 samples of 4-week trading periods
+set.seed(500)
+sim3 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0.2,0.2,0.2,0.2,0.2)
+  holdings = weights * total_wealth
+  wealthtrackerTech= rep(0, n_days)
+  for(today in 1:n_days) {
+    returnT.today = resample(tech_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*returnT.today
+    total_wealth = sum(holdings)
+    wealthtrackerTech[today] = total_wealth
+    holdings = weights * total_wealth
+  }
+  wealthtrackerTech
+}
+```
+
+A quick glimpse of the profit/loss histogram for the 5,000 bootstrap samples {note a couple of huge wins since the tech industry is so volitle}:
+
+```{r,tech profit loss, echo=FALSE}
+hist(sim3[,n_days]- initial_wealth, breaks=30,
+     main = 'Profit/ Loss Histogram',
+     xlab = 'Profit/ Loss',
+     col = 'blue')
+```
+
+Using the 5,000 bootstrap samples, we estimate the the 4-week value at risk for the *tech portfolio* at the 5% level to:
+
+```{r,tech VaR, echo=FALSE}
+# 5% value at risk:
+techVaR = quantile(sim3[,n_days]- initial_wealth, prob=0.05)
+# Format VaR
+techVaR.format = paste0("$", formatC(as.numeric(abs(techVaR)), format="f", digits=0, big.mark=","))
+techVaR.format
+```
+
+## Balanced Portfolio
+
+* **RSP** {Large Cap Blend Equities} - considerably more balanced than other alternatives such as SPY, and a methodology that some investors believe will add value over the long haul
+* **BSV** {Total Bond Markets} - great safe haven to park assets in volatile markets
+* **RYT** {Technology Equities} - exposure that is considerably more balanced
+* **SPEM** {Emerging Market Equities} - well-diversified option for long-term investors building a balanced portfolio
+* **SCHF** {Foreign Large Cap Equities} - close to 1,000 individual holdings, this ETF brings immediate diversification 
+* **VXF** {All Cap Equities} - extremely diversified in small and mid caps
+* **AOA** {Diversified Portfolio} - seeking an aggressive strategy that tilts towards equities and away from fixed income
+
+```{r,Balanced Bootstrap, echo=FALSE, include=FALSE}
+# Import the 7 EFTs in the balanced portfolio
+balancedStocks = c("RSP","BSV","RYT","SPEM","SCHF","VXF","AOA")
+getSymbols(balancedStocks,
+           from = "2016-08-01",
+           to= "2021-07-30")
+
+
+# Adjust all EFTs
+for(ticker in balancedStocks) {
+  expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+  eval(parse(text=expr))}
+
+# Combine all the returns in a matrix
+balanced_returns = cbind(ClCl(AOAa),
+                         ClCl(BSVa),
+                         ClCl(RSPa),
+                         ClCl(RYTa),
+                         ClCl(SCHFa),
+                         ClCl(SPEMa),
+                         ClCl(VXFa))
+  
+balanced_returns = as.matrix(na.omit(balanced_returns))
+
+# Bootstrap 5,000 different 4 week trading periods
+initial_wealth = 100000
+set.seed(100)
+sim2 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(1/7,1/7,1/7,1/7,1/7,1/7,1/7)
+  holdings = weights * total_wealth
+  n_days = 10
+  wealthtrackerBalanced = rep(0, n_days)
+  for(today in 1:n_days) {
+    returnB.today = resample(balanced_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*returnB.today
+    total_wealth = sum(holdings)
+    wealthtrackerBalanced[today] = total_wealth
+    holdings = weights * total_wealth   #rebalance
+  }
+  wealthtrackerBalanced
+}
+```
+
+A quick glimpse of the profit/loss histogram for the 5,000 bootstrap samples:
+
+```{r,Balanced profit loss, echo=FALSE}
+hist(sim2[,n_days]- initial_wealth, breaks=30,
+     main = 'Profit/ Loss Histogram',
+     xlab = 'Profit/ Loss',
+     col = 'red')
+```
+
+Using the 5,000 bootstrap samples, we estimate the the 4-week value at risk for the *Balanced portfolio* at the 5% level to:
+
+```{r,Balanced VaR, echo=FALSE}
+# 5% value at risk:
+BalancedVaR = quantile(sim2[,n_days]- initial_wealth, prob=0.05)
+# Format VaR
+BalancedVaR.format = paste0("$", formatC(as.numeric(abs(BalancedVaR)), format="f", digits=0, big.mark=","))
+BalancedVaR.format
+```
+So in summary, we have three portfolios. One focused on dividend payout, one focused on tech (volatile industry), and another one with a well balanced portfolio. For each portfolio, we estimated the 4-week VaR at the 5% level:
+
+```{r, Portfolio summary table, echo=FALSE}
+summary = data.frame('Portfolio' = c('Income-Drive','Tech','Balanced'),
+                     'VaR' = c(incomeVaR.format,techVaR.format,BalancedVaR.format))
+summary
+```
+
+To no surprise, the balanced portfolio has the lowest amount of risk for a 4-week (20 trading day) period. Tech and income-driven turn out to have about the same amount of risk. 
+
 # **Question 4** Market Segmentation
+
 ```{r, TITLE, echo=FALSE}
 
 ```
 
 # **Question 5** Author Attribution
+
 ```{r, TITLE, echo=FALSE}
 
 ```
 
 # **Question 6 ** Association Rule Mining
+
 ```{r, TITLE, echo=FALSE}
 
 ```
