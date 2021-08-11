@@ -1,8 +1,11 @@
 ---
-title: 'CRAVENS - Part 2: Excercies'
+title: 'CRAVENS - Part 2 Excercies'
 author: "Conoly Cravens (mcc4443)"
 date: "8/3/2021"
-output: pdf_document
+output:
+  word_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -11,15 +14,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # **Question 1** Visual Story Telling Part 1: *Green Buildings*
 
-```{r, TITLE, echo=FALSE}
 
-```
 
 # **Question 2** Visual Story Telling Part 2: *Flights at ABIA*
 
-```{r, TITLE, echo=FALSE}
 
-```
 
 # **Question 3** Portfolio Modeling
 
@@ -28,6 +27,7 @@ rm(list = ls())
 library(mosaic)
 library(quantmod)
 library(foreach)
+library(formattable)
 ```
 
 We assessed three different portfolios VaR:
@@ -253,27 +253,166 @@ BalancedVaR.format
 So in summary, we have three portfolios. One focused on dividend payout, one focused on tech (volatile industry), and another one with a well balanced portfolio. For each portfolio, we estimated the 4-week VaR at the 5% level:
 
 ```{r, Portfolio summary table, echo=FALSE}
-summary = data.frame('Portfolio' = c('Income-Drive','Tech','Balanced'),
+data.frame('Portfolio' = c('Income-Drive','Tech','Balanced'),
                      'VaR' = c(incomeVaR.format,techVaR.format,BalancedVaR.format))
-summary
+
 ```
 
 To no surprise, the balanced portfolio has the lowest amount of risk for a 4-week (20 trading day) period. Tech and income-driven turn out to have about the same amount of risk. 
 
 # **Question 4** Market Segmentation
 
-```{r, TITLE, echo=FALSE}
+FOR: NutrientH20 Executives
+OBJECTIVE: Identify market segments that appear in your social-media audience
+```{r, Q4 Document setup, echo=FALSE,include=FALSE}
+rm(list = ls())
+library(ggplot2)
+library(formattable)
+library(cluster)
+library(foreach)
+library(data.table)
 
+setwd("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2")
+#Read Data in
+rawData = read.csv('social_marketing.txt',sep = ',',header = TRUE,row.names=1)
+
+social = rawData
+#Combine Spam & Adult (most likely bots)
+social$bot = social$spam + social$adult
+
+#Combine uncategorized & chatter since annotators used interchangeably
+social$unknown = social$uncategorized + social$chatter
+
+#Deselect columns
+social = social[,-c(1,5,35,36)]
 ```
+
+## Methodology: Kmeans Clustering
+After some data exploration and fitting a variety of models, we determined that K-means clustering was an effective (and efficient) way to determine market segments.
+
+### Determining the Optimal Number of Clusters (k)
+
+```{r, Q4 Kmeans, echo=FALSE, include=FALSE}
+# Center and scale the data
+socialScaled = scale(social, center=TRUE, scale=TRUE)
+
+# Extract the centers and scales from the rescaled data (which are named attributes)
+mu = attr(socialScaled,"scaled:center")
+sigma = attr(socialScaled,"scaled:scale")
+
+set.seed(5)
+k_grid = seq(2,30, by = 1)
+SSE_grid = foreach(k=k_grid,  .combine='c') %do% {
+  cluster_k = kmeans(socialScaled,k,nstart=50)
+  cluster_k$tot.withinss
+}
+```
+
+```{r, Q4 Kmeans Elbow Plot, echo=FALSE}
+plot(x=k_grid, y= SSE_grid,col=ifelse(k_grid==10, "red", "grey24"),
+     pch = 16, main='Elbow Plot',
+     xlab = '# of clusters (k)',
+     ylab = 'Error (SSE)')
+```
+
+From the elbox plot, we determined that **10** clusters optimizes the bias-variance trade off in our error (slope from 10 -> 11 is less steap than the slope from 9 -> 10). 
+
+## Result
+After dividing our followers into 10 segments, we get the following table of centers (conditional formatted to highlight the factors that each cluster scored well in).
+
+```{r, Q4 Kmeans Centers, echo=FALSE}
+set.seed(5)
+#Run kmeans model
+clusters = kmeans(socialScaled, 10, nstart=50,iter.max = 20)
+
+#Clean up centers table
+centers = transpose(data.frame(clusters$centers))
+rownames(centers) = colnames(data.frame(clusters$centers))
+colnames(centers) = rownames(data.frame(clusters$centers))
+
+#Conditional Format
+centers = formattable(centers, lapply(1:ncol(centers), function(col) {
+  area(col, row = -1) ~ color_tile("white", "lightgreen")
+}))
+centers
+```
+
+## Cluster Analysis
+
+### Cluster 1: Working Professionals
+Cluster one had high scores in *travel*, *politics*, and *computers*, and medium scores in business, small business, and news. Based on these characteristics, we classify these are working professionals. 
+
+### Cluster 2: Middle Age Men
+Cluster two had high scores in *politics*, *news*, and *automative*, and medium scores in sports fandom and outdoors. Based on these characteristics, we classify these are middle age men.
+
+
+### Cluster 3: Uncharacterized 
+Cluster three had all negative scores, meaning no category stood out. This is the cluster of people we could not classify. 
+
+### Cluster 4: Parents 
+Cluster four had high scores in *family*, *religion*, *parenting*, *school*, *sports fandom*, and *food*. Based on these characteristics, we classify this segment as parents. 
+
+### Cluster 5: BOTs 
+Cluster five are the bots that were not initially filtered out.
+
+### Cluster 6: Artists
+Cluster six had high scores in *tv film* and *art*, and medium scores in music, craft, and small businesses. Based on these characteristics, we classify these as artists.
+
+### Cluster 7: Young Women 
+Cluster seven had high scores in *cooking*, *beauty*, and *fashion*, and medium scores in photo sharing and music. Based on these characteristics, we classify these as young women
+
+### Cluster 8: College Students
+Cluster eight had high scores in *online gaming*, *college university*, and *sports playing*. Based on these characteristics, we classify these as college students.
+
+### Cluster 9: Middle Aged Women Active on Computers 
+Cluster nine had high scores in *photo sharing*, *shopping*, and *unknown (combination of chatter and uncategorized*. Based on these characteristics, we classify these as middle age women active on their computers.
+
+### Cluster 10: Fitness Enthusiest
+Cluster ten had high scores in *health nutrition*, *outdoors*, and *personal fitness*, and medium scores in food, cooking, and eco. Based on these characteristics, we classify this cluster as fitness enthusiast.
+
+To better picture these clusters, I put together a plot for each cluster (excluding Bots & Uncharacterized) showing dots for different users along the scale of two primary factors. Each dot is colored in with the cluster. You will see for each graph, the cluster being highlighted dominates the graph!
+
+```{r, Q4 Cluster Plots , echo=FALSE, fig.show="hold", out.width="25%"}
+#Qplot for each cluster...
+
+qplot(travel, computers, data=social, color=factor(clusters$cluster), main = 'Cluster 1: Working Professionals')
+
+qplot(news, automotive, data=social, color=factor(clusters$cluster), main = 'Cluster 2: Middle Age Men')
+
+qplot(parenting, family, data=social, color=factor(clusters$cluster), main = 'Cluster 4: Parents')
+
+qplot(tv_film, art, data=social, color=factor(clusters$cluster), main = 'Cluster 6: Artists')
+
+qplot(beauty, fashion, data=social, color=factor(clusters$cluster), main = 'Cluster 7: Young Women ')
+
+qplot(online_gaming, college_uni, data=social, color=factor(clusters$cluster), main = 'Cluster 8: College Students')
+
+qplot(shopping, photo_sharing, data=social, color=factor(clusters$cluster), main = 'Cluster 9: Middle Aged Women Active on Computers')
+
+qplot(health_nutrition, personal_fitness, data=social, color=factor(clusters$cluster), main = 'Cluster 10: Fitness Enthusiest')
+```
+
+## Summary
+We saw a total of 10 different clusters, all with different sizes:
+
+```{r, Q4 Kmeans Final Table, echo=FALSE}
+#Create summary dataframe
+data.frame('Cluster' = 1:10,
+           'Characteristic' = c('Working Professionals',
+                                'Middle Age Men','Uncharacterized',
+                                'Parents', 'Bots','Artists',
+                                'Young Women', 'College Students',
+                                'Middle age women on computers',
+                                'Fitness Enthusiest'),
+           'Cluster Size' = clusters$size,
+           'Percent of Audience' = round(clusters$size/7882*100))
+```
+
+While we would ideally trim down the uncharacterized users to a unique group, increasing the number of clusters makes other categories too small (less than 2%) and therefore take away from the overall effectivness of market segmentation for business implenetation. 
 
 # **Question 5** Author Attribution
 
-```{r, TITLE, echo=FALSE}
 
-```
 
 # **Question 6 ** Association Rule Mining
 
-```{r, TITLE, echo=FALSE}
-
-```
