@@ -3,26 +3,547 @@ title: 'CRAVENS - Part 2 Excercies'
 author: "Conoly Cravens (mcc4443)"
 date: "8/3/2021"
 output:
-  word_document: default
   html_document:
-    df_print: paged
+    keep_md: yes
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
 # **Question 1** Visual Story Telling Part 1: *Green Buildings*
+FOR: Austin Real-Estate Developer
+
+```{r, Q1 document setup, echo=FALSE, include=FALSE}
+rm(list = ls())
+
+library(dplyr)
+library(ggplot2)
+
+setwd("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2/STA380-master/data")
+green_buildings = read.csv('greenbuildings.csv',header=TRUE)
+rawdata = green_buildings
+
+green_buildings$green_rating = as.factor(green_buildings$green_rating)
+
+green_only = subset(green_buildings, green_rating==1)
+non_green = subset(green_buildings, green_rating==0)
+```
+
+Unfortunately, your instincts were correct. The excel guru has made a couple of key errors while analyzing your real estate data:
+
+## Mistake 1: Dropping leasing rates below 10%
+
+From the boxplots below, you can see that most leasing rates are above 75%, and green buildings leasing rates are above 85%. So this calls me to question where the 10% came from. If you wanted to 'cut off' the outliars (all the dots in the boxplots), you would make drop any leasing rate below ~50%. However, would this lead to a better analysis? 
+
+```{r, Q1Mistake 1, echo=FALSE, fig.show="hold", out.width="50%"}
+
+ggplot(green_buildings, aes(y=leasing_rate)) + 
+  geom_boxplot(fill = 'skyblue3') +
+  labs(title="Glance at Leasing Rate", y = "Leasing Rates") +
+  theme_classic() + 
+  theme(legend.position="none")
+
+ggplot(green_buildings, aes(x= green_rating, y=leasing_rate, fill = green_rating)) + 
+  geom_boxplot() +
+  labs(title="Leasing Rate by Green Status",x="Green Status (1=Green)", 
+       y = "Leasing Rates") +
+  scale_fill_brewer(palette="Greens") + theme_classic() +
+  theme(legend.position="none")
+```
+
+By examining the relationship between rent and leasing rate for both green and non green buildings (scatterplots below), we see there is nothing alarming between the relationship between rent and leasing rate for Green Buildings for leasing rates below 10%. So cutting the data does not make sense. 
+
+The theory of 'weird buildings' applies to several of non green buildings with ~0% leasing rate. We could consider dropping buildings with a 0% leasing rate, but again, I would still not cut off at the 10% margin.
+
+```{r, Q1 Relationship btwn Rent and Leasing Rate, echo=FALSE, fig.show="hold", out.width="50%"}
+ggplot(green_only, aes(x= leasing_rate, y=Rent)) + 
+  geom_point(color = 'springgreen4') +
+  labs(title="Relationship between Rent and Leasing Rate for Green Buildings",
+       x="Leasing Rate", 
+       y = "Rent") +
+  theme_classic() +
+  theme(legend.position="none")
+
+ggplot(non_green, aes(x= leasing_rate, y=Rent)) + 
+  geom_point(color = 'royalblue') +
+  labs(title="Relationship between Rent and Leasing Rate for Non Green Buildings",
+       x="Leasing Rate", 
+       y = "Rent") +
+  theme_classic() +
+  theme(legend.position="none")
+```
+
+## Mistake 2: Using Median Market Rent
+
+While the distribution of rent is very large with many outliars on the high side {see boxplots below}, using the median rent for each group does not take into account the many other variables that could also be impacting rent.
+
+```{r, Q1 Median Market Rate, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+ggplot(green_buildings, aes(x=green_rating, y=Rent, fill = green_rating)) + 
+  geom_boxplot() +
+  labs(title="Rent Boxplots",x="Green Status (1=Green)", y = "Rent") +
+  scale_fill_brewer(palette="Greens") + theme_classic() + 
+  theme(legend.position="none")
+  
+```
+
+Facts we know about the new building:
+
+* New Build (age = 0)
+* Green Status in question
+* 15 stories
+* Location: East Cesar Chavez
+
+### Factor in consideration: BUILDING CLASS 
+Another factor the guru did not consider was class. Off the bat, we see how there are a different proportion of buildings in each building class for green and non green buildings. To no surprise, most green buildings gall into Class A, the most desirable class. *I will assume if we build a green building, it will fall into the class A class based on this distribution.* Now how does class relate to rent?
+
+```{r, Q1 Class and Rent setup, echo=FALSE, include=FALSE}
+green_buildings = green_buildings %>% 
+  mutate(TYPE = case_when((class_a==1)~'Class A',
+                                 (class_b==1)~'Class B',
+                                 (class_b==0 & class_a ==0)~'Class C'))
+
+class_groupby = green_buildings %>%
+  group_by(TYPE,green_rating)%>%
+  summarize(mean_rent = median(Rent),n=n())
+```
+
+```{r, Q1 Class and Rent Class Distribution, fig.align='center',echo=FALSE, fig.show="hold", out.width="50%"}
+ggplot(green_buildings, 
+       aes(x = green_rating, fill = TYPE)) + 
+  geom_bar(position = "fill") +
+  labs(x = 'Green Status (Green = 1)', y = "Proportion of Classes", 
+       title = 'Distribution of Building Classes by Green Status') +
+  scale_fill_brewer(palette="Blues") + theme_classic()
+```
+
+We can clearly see that class is related the rent, and additionally, the differences between green and non green buildings rent depends on the class of the building. *Assuming we would be a class A building, green and non green buildings will have about the same rent.*
+
+```{r, Q1 Class and Rent Bar Plots, echo=FALSE, fig.show="hold", out.width="50%"}
+ggplot(green_buildings, aes(x=TYPE, y=Rent, fill = TYPE)) + 
+  stat_summary(fun = "mean", geom = "bar") +
+  labs(title="Rent by Class",x="Class", y = "Average Rent") +
+  scale_fill_brewer(palette="Blues") + theme_classic() +
+  theme(legend.position="none")
+
+ggplot(class_groupby, aes(x=TYPE, y=mean_rent, fill = green_rating)) + 
+  geom_bar(stat = 'identity', position = 'dodge') +
+  labs(title="Rent by Class and Green Status",x="Class", y = "Median Rent",
+       fill = 'Green Status (green = 1)') +
+  scale_fill_brewer(palette="Greens") + theme_classic()
+```
+
+### Factor in consideration: NUMBER OF STORIES
+The guru did not take into consideration how many stories the proposed building would have. Clearly the number of stories in a building effects rent, but more importantly for our sake, the difference between green and non green buildings varies. *For a 15 story building, green and non green buildings have almost identical mean rents.*
+
+```{r, Q1 Stories and Rent setup, echo=FALSE, include=FALSE}
+green_buildings$storydbins = cut(green_buildings$stories,c(0,10,20,35,50,80,120))
+
+storydbins_groupby = green_buildings %>%
+  group_by(storydbins,green_rating)%>%
+  summarize(mean_rent = mean(Rent),n=n())
+```
+
+```{r, Q1 Stories and Rent, echo=FALSE, fig.align='center',fig.show="hold", out.width="50%"}
+ggplot(storydbins_groupby,aes(x=storydbins,y = mean_rent,fill=factor(green_rating)))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = '# of Stories (bins)', y = 'Average Rent', 
+       title = 'Rents of Green vs Non Green building based on Number of Stories', 
+       fill = 'Green Status (Green = 1)') +
+  scale_fill_brewer(palette="Greens") + theme_classic()
+```
+
+### Factor in consideration: AMENITIES
+We also know about amentity status. *For our mixed-use building (assuming this means amenities will be provided), rent for green buildings may have a very small premium, but not much at all.*
+
+```{r, Q1 Amenities and Rent setup, echo=FALSE, include=FALSE}
+green_buildings$amenities = ifelse(green_buildings$amenities==1, 'Yes', 'No')
+
+amenities_groupby = green_buildings %>%
+  group_by(amenities,green_rating)%>%
+  summarize(mean_rent = mean(Rent),n=n())
+```
+
+```{r, Q1 Amenities and Rent, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+ggplot(amenities_groupby,aes(x=amenities,y = mean_rent,fill=factor(green_rating)))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Amenities Provided', y = 'Average Rent', 
+       title = 'Rents of Green vs Non Green building based on Amenities', 
+       fill = 'Green Status (Green = 1)') +
+  scale_fill_brewer(palette="Greens") + theme_classic()
+```
 
 
+### Factor in consideration: AGE
+The guru also did not consider the fact that we would be a new building. To better analyze and picture the relationship between age and rent, we divided the buildings into groups based on age range. As a reminder, while we have data on over 7,800 buildings, we only have data on 685 green buildings. Of those 685 green buildings, most of the green buildings fall into the 10 - 30 year bin. That means ~300 buildings fall into the other age categories, but we still want to consider age - it seems logically important.
+
+```{r, Q1 Age and Rent setup, echo=FALSE, include=FALSE}
+green_buildings$agedbins = cut(green_buildings$age,c(-1,10,30,50,90,200))
+
+agebins_groupby = green_buildings %>%
+  group_by(agedbins,green_rating)%>%
+  summarize(mean_rent = mean(Rent),n=n())
+```
+
+```{r, Q1 Age Distribution, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+ggplot(green_buildings, 
+       aes(x = green_rating, fill = agedbins)) + 
+  geom_bar(position = "fill") +
+  labs(x = 'Green Status (Green = 1)', y = "Proportion of Classes", 
+       title = 'Distribution of Age by Green Status') +
+  scale_fill_brewer(palette="Blues") + theme_classic()
+```
+
+We see off the bat that green buildings appear to be out preforming non green buildings for older buildings. *For our newer building, non-green buildings have a premium*: 
+
+```{r, Q1 Age and Rent, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+ggplot(agebins_groupby,aes(x=agedbins,y = mean_rent,fill=factor(green_rating)))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Age in Years (bins)', y = 'Average Rent', 
+       title = 'Rents of Green vs Non Green building based on Age', 
+       fill = 'Green Status (Green = 1)') +
+  scale_fill_brewer(palette="Greens") + theme_classic()
+
+```
+
+But then we looked into rennovation status and saw that green buildings have a premium on rennovated buildings. What is the difference between new buildings and rennovated buildings?
+
+```{r, Q1 Renovated and Rent setup, echo=FALSE, include=FALSE}
+green_buildings$renovated = ifelse(green_buildings$renovated==1, 'Yes', 'No')
+
+renovated_groupby = green_buildings %>%
+  group_by(renovated,green_rating)%>%
+  summarize(mean_rent = mean(Rent),n=n())
+```
+
+```{r, Q1 Renovated and Rent, echo=FALSE, fig.show="hold", out.width="50%"}
+ggplot(renovated_groupby,aes(x=renovated,y = mean_rent,fill=factor(green_rating)))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Renovated?', y = 'Average Rent', 
+       title = 'Rents of Green vs Non Green building based on Renovation Status', 
+       fill = 'Green Status (Green = 1)') +
+  scale_fill_brewer(palette="Greens") + theme_classic()
+```
+
+We then took a step back to see how age was related to rent for all buildings and we 
+saw the following distribution: 
+
+```{r, Q1 Age and Rent Overall, echo=FALSE,fig.align='center',fig.show="hold", out.width="50%"}
+ggplot(agebins_groupby,aes(x=agedbins,y = mean_rent,fill=agedbins))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Age (bins)', y = 'Average Rent', 
+       title = 'Rent and Age') +
+  scale_fill_brewer(palette="Reds") + theme_classic() +
+  theme(legend.position="none")
+```
+
+Does age really not effect rent? This seems unlikely. There must be another factor at play here. Is there an area where the location is ideal but the buildings are older, such as downtown?
+
+### Factor in consideration: LOCATION
+One of the primary factors the excel guru did not take into consideration was location. In particular, how green buildings behave in their cluster.
+
+There is a total of 685 clusters, too many clusters to really examine closely. So again, we can group on cluster rent to get a better feel on how green buildings and non green buildings behave in a market. While the histogram below shows us how green buildings are actually skewed-left, we do not see  how green and non green buildings perform in their groups.
+
+```{r, Q1 Location and Rent, echo=FALSE, fig.align='center',fig.show="hold", out.width="50%"}
+ggplot(green_buildings)+
+  geom_histogram(aes(x = cluster_rent, y = stat(density),fill=factor(green_rating)),binwidth = 5)+
+  labs(x = 'Cluster Rent', y = 'Density',
+       title= 'Histogram for each Neighborhood - Green vs Non Green', 
+       fill = 'Green Status (Green = 1)') +
+  scale_fill_brewer(palette="Greens") + theme_classic()
+```
+
+Depending on the 'market rate' or mean cluster rent for buildings near East Cesar Chavez (across form 1-35), the difference in rent for green and non green buildings may vary.But green buildings appear to have a premium for every group. **Location is a very important factor to consider.**
+
+```{r, Q1 Location and Rent2 setup, echo=FALSE, include=FALSE}
+green_buildings$nbhdbins = cut(green_buildings$cluster_rent,c(0,20,30,40,60,100))
+
+nbhdbins_groupby = green_buildings %>%
+  group_by(nbhdbins,green_rating)%>%
+  summarize(mean_rent = mean(Rent),n=n())
+```
+
+```{r, Q1 Location and Rent2, echo=FALSE, fig.align='center',fig.show="hold", out.width="50%"}
+ggplot(nbhdbins_groupby,aes(x=nbhdbins,y = mean_rent,fill=factor(green_rating)))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Cluster Rent (bins)', y = 'Average Rent', 
+       title = 'Rents of Green vs Non Green building based on Location', 
+       fill = 'Green Status (Green = 1)') +
+  scale_fill_brewer(palette="Greens") + theme_classic()
+
+ggplot(green_buildings, aes(x= cluster_rent, y=Rent)) + 
+  geom_point() +
+  labs(title="Relationship between Cluster Rent and Rent",
+       x="Cluster Rent", 
+       y = "Rent") +
+  theme_classic() +
+  theme(legend.position="none")
+```
+
+## Conclusion
+
+I cannot happily agree with your excel guru. We saw the relationship between rent and a few of the 20+ predictors we have to work with within the data: *green status, class, stories, amenities, age / renovation status*. We also clearly saw while examining age, there must be confounding variable at play - potentially *location*?
+
+So while considering each of these variables relationship independently, we also must consider how they are all working together:
+
+```{r, Q1 Correlation Matrix, echo=FALSE, fig.align='center',fig.show="hold", out.width="50%"}
+analyze = subset(rawdata, select = c('size', 'Rent', 'leasing_rate', 
+                                             'stories', 'age', 'renovated', 'green_rating', 
+                                             'class_a', 'class_b', 'net', 'amenities',
+                                             'cd_total_07', 'hd_total07', 'Gas_Costs', 
+                                             'Electricity_Costs', 'cluster_rent'))
+
+analyze = sapply( analyze, as.numeric )
+
+analyze = data.frame(analyze)
+
+ggcorrplot::ggcorrplot(cor(analyze),hc.order = TRUE, type='lower',outline.color='white') +
+  labs(title = 'Correlation Matrix')
+
+analyze_green = subset(green_only, select = c('size', 'Rent', 'leasing_rate', 
+                                             'stories', 'age', 'renovated',
+                                             'class_a', 'class_b', 'net', 'amenities',
+                                             'cd_total_07', 'hd_total07', 'Gas_Costs', 
+                                             'Electricity_Costs', 'cluster_rent'))
+
+analyze_green = sapply( analyze_green, as.numeric )
+
+analyze_green = data.frame(analyze_green)
+
+ggcorrplot::ggcorrplot(cor(analyze_green),hc.order = TRUE, type='lower',outline.color='white') +
+  labs(title = 'Correlation Matrix for Green Buildings ONLY')
+```
+
+We do see a Cluster rent is clearly the most strongly correlated to rent, **therefore, I would highly recommend we perform a deep analysis of the surrounding area to get an idea of rent for both green and non buildings**. 
+
+But if I had to make a recommendation right now, I would say if you are looking for short-term gains, there would not be enough of a premium on a green building to make it worth your while (think about the class and age minimal or no gains). However, if we are looking to hold onto the property a green building may be worthwhile as we saw the price of green buildings upholds over the long term. `
 
 # **Question 2** Visual Story Telling Part 2: *Flights at ABIA*
 
+```{r, Q2 document setup, echo=FALSE, include=FALSE}
+rm(list = ls())
 
+library(dplyr)
+library(ggplot2)
+
+setwd("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2/STA380-master/data")
+ABIA = read.csv('ABIA.csv',header=TRUE)
+rawdata = ABIA
+```
+
+## Airline Analysis
+
+### 'Most Frequent Flyers' (airline volume of flights)
+**Southwest Airlines** (WN) has the most flights in and out of ABIA followed by *American Airlines*. 
+
+```{r, Q2 airline frequency, echo=FALSE, include= FALSE}
+airline_groupby = ABIA %>%
+  dplyr:: group_by(UniqueCarrier) %>%
+  dplyr:: summarize(numflights = length(TailNum))
+```
+
+```{r, Q2 airline frequency plot, echo = FALSE, fig.align='center',echo=FALSE, fig.show="hold", out.width="50%"}
+ggplot(airline_groupby,aes(x=reorder(UniqueCarrier, -numflights), -num,y = numflights, fill = UniqueCarrier))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Airline Carrier')+
+  labs(y = 'Number of Flights')+
+  labs(title = 'Airline Carrier Flight Frequency')+
+  theme_classic() 
+```
+
+### Airlines with most Cancellations
+First, we looked at cancelled flights distribution by the 3 options (A = carrier, B = weather, C = NAS, D = security). We can see that most flights are canceled due to weather or by airline. Assuming the weather cancellations effect each airline more or less evenly thoughout the year, we will continue to analyze cancellations for each airline using total cancellations.
+
+```{r, Q2 airline cancel frequency, echo=FALSE, fig.align='center',echo=FALSE, fig.show="hold", out.width="50%"}
+
+ggplot((ABIA[ABIA$Cancelled != 0,]), aes(x= '', y = sum(Cancelled), fill= CancellationCode))+
+  geom_bar(stat='identity', postion = 'fill',  na.rm = TRUE) +
+  labs(y = 'Count')+
+  labs(title = 'Canceled Flight Reason Distribution')+
+  scale_fill_brewer(palette="Blues")+ theme_classic() 
+```
+
+Since the number of flights each airline has in and out of ABIA, we used % of canceled flights as a better determinate for analyzing cancellation frequency. We see that Envoy Airlines (MQ) has the largest cancellation percentage (~6.4%). All other airlines are below 3%. While 6% is not 'alarming' per say, all people booking flights should be aware of Envoy's cancellation rate.
+
+```{r, Q2 cancellations, echo=FALSE, fig.align='center',echo=FALSE, fig.show="hold", out.width="50%"}
+
+airline_groupby2 = ABIA %>%
+  dplyr:: group_by(UniqueCarrier) %>%
+  dplyr:: summarize(cancellationrate = (sum(Cancelled)*100.0/length(TailNum)))
+
+ggplot(airline_groupby2, aes(x=reorder(UniqueCarrier, -cancellationrate), 
+                                    y = cancellationrate, fill= UniqueCarrier))+
+  geom_bar(stat='identity') +
+  labs(x = 'Airline Carrier')+
+  labs(y = '% of Canceled Flights')+
+  labs(title = 'Airline Carrier Cancellations')+
+  geom_text(aes(label = paste(sprintf("%.02f", cancellationrate, "%"))),
+            position=position_dodge(width=0.9), vjust=-0.25) +
+  theme_classic() 
+```
+
+### Airlines with Delays
+Aside from a cancelled flight, flyers has delayed flights more than anything. Let's examine delays. To do so, we want to consider flight time as well as delay time - is a 20 minute delay for a 1 hour flight the same as a 5 hour flight? No! Again, we see Envoy Airlines (MQ) having the the longest delays. 
+
+```{r, Q2 airline delays, echo=FALSE, fig.align='center',echo=FALSE, fig.show="hold", out.width="50%"}
+
+ABIA$DelayP = (ABIA$ArrDelay * 100.0)/ ABIA$CRSElapsedTime
+ABIA$DelayP = ifelse(ABIA$DelayP>0, ABIA$DelayP, 0.0)
+
+airline_groupby3 = ABIA %>%
+  dplyr:: group_by(UniqueCarrier) %>%
+  dplyr:: summarize(avgdelay = mean(DelayP,na.rm = TRUE))
+
+ggplot(airline_groupby3,aes(x=reorder(UniqueCarrier, -avgdelay), -num,y = avgdelay, fill = UniqueCarrier))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Airline Carrier')+
+  labs(y = 'Mean Delay (% impact)')+
+  labs(title = 'Airline Carrier Delays')+
+  geom_text(aes(label = paste(sprintf("%.02f", avgdelay, "%"))),
+            position=position_dodge(width=0.9), vjust=-0.25) +
+  theme_classic() 
+```
+
+### Day of Week Delays
+We see delays do not have the same impact by day of the week. Thursday and Friday have the longest delays. 
+
+```{r, Q2 DOW delays, echo=FALSE, fig.align='center',echo=FALSE, fig.show="hold", out.width="50%"}
+ABIA$DOW = case_when(ABIA$DayOfWeek == 1 ~ 'Monday',
+                     ABIA$DayOfWeek == 2 ~ 'Tuesday',
+                     ABIA$DayOfWeek == 3 ~ 'Wednesday',
+                     ABIA$DayOfWeek == 4 ~ 'Thursday',
+                     ABIA$DayOfWeek == 5 ~ 'Friday',
+                     ABIA$DayOfWeek == 6 ~ 'Saturday',
+                     ABIA$DayOfWeek == 7 ~ 'Sunday')
+
+ABIA$DOW = factor(ABIA$DOW, levels = c('Monday','Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'))
+
+dowdelay_groupby = ABIA%>%
+  group_by(DOW)%>%
+  summarize(avgdelay = mean(DelayP,na.rm = TRUE))
+
+ggplot(dowdelay_groupby,aes(x=reorder(DOW, -avgdelay),y = avgdelay, fill = DOW))+
+  geom_bar(stat = 'identity', position = 'dodge')+
+  labs(x = 'Day of the Week')+
+  labs(y = 'Mean Delay (% impact)')+
+  labs(title = 'Delays by Day of the Week')+
+  geom_text(aes(label = paste(sprintf("%.02f", avgdelay, "%"))),
+            position=position_dodge(width=0.9), vjust=-0.25) +
+  theme_classic() +
+  theme(legend.position="none")
+```
+
+### Look at Day of Week Delays by Airlines
+Now to combine those two insights, we broke down each airline with their day of week delays. Each plot goes from Monday on the left to Sunday on the far left. We can make suggestions on which airline to beware of based on the type of traveler:
+
+* Weekend Traveler: Beware of Envoy Airlines (MQ), they have high impact delays on Thurday/ Fridays & Sundays
+* Business Traveler: Beware of Continental Airline (CO), Northwest Airlines (NW), and even American Airlines
+
+```{r, Q2 DOW and Airline delays, echo=FALSE, fig.align='center'}
+airlinedaydelay_groupby = ABIA%>%
+  group_by(UniqueCarrier,DOW)%>%
+  summarize(avgdelay = mean(DelayP,na.rm = TRUE))
+
+ggplot(airlinedaydelay_groupby)+
+  geom_bar(mapping = aes(x= DOW, y = avgdelay, fill = DOW), stat = 'identity', position = 'dodge')+
+  facet_wrap(~UniqueCarrier)+
+  labs(x = 'Day of the Week')+
+  labs(y = 'Mean Delay (% impact)')+
+  labs(title = 'Delays by Day of the Week')+
+  theme_classic() +
+  theme(legend.position="none")
+```
+
+*A further explanation of time of day and Airline Delays would be carried out the same way. For the sake of concision, we will not demonstrate that process. However, similar findings were found - avoid Envoy (MQ) on the weekends (think mid-morning flights Thursday/ Friday & Sunday). Additionally for professionals (think early monring weekday flights), beware of Continental Airlines!*
+
+## Locations
+We can also see where ABIA flights typically go and come from:
+
+### Flights coming to Austin
+```{r, Q2 map setup, echo=FALSE, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(maps)
+library(geosphere)
+library(tidyr)
+library(dplyr)
+
+setwd("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2/STA380-master/data")
+codes = read.csv('airport-codes.csv',header=TRUE)
+```
+
+```{r, Q2 flights to austin, echo=FALSE, fig.align='center'}
+Otable = merge(ABIA, codes, by.x= "Origin", by.y = "iata_code", all.x = TRUE)
+
+Otable = Otable %>%
+  separate(coordinates, into = c('lat', 'lon'), sep=",")
+Otable = transform(Otable, lon = as.numeric(lon),
+          lat = as.numeric(lat))
+
+#create basemap
+map("world", regions=c("usa"), fill=T, col="grey8", bg="white", ylim=c(21.0,50.0), xlim=c(-130.0,-65.0))
+#overlay airports
+points(Otable$lon,Otable$lat, pch=3, cex=0.1, col="chocolate1")
+
+for (i in (1:dim(Otable)[1])) { 
+inter <- gcIntermediate(c(-97.6698989868164, 30.194499969482422), c(Otable$lon[i], Otable$lat[i]), n=100)
+
+lines(inter, lwd=0.1, col="turquoise2")    
+}
+```
+
+### Flights Leaving to Austin
+```{r, Q2 flights leaving austin, echo=FALSE, fig.align='center'}
+Dtable = merge(ABIA, codes, by.x='Dest' , by.y = "iata_code", all.x = TRUE)
+
+Dtable = Dtable %>%
+  separate(coordinates, into = c('latD', 'lonD'), sep=",")
+Dtable = transform(Dtable, lonD = as.numeric(lonD),
+          latD = as.numeric(latD))
+
+#create basemap
+map("world", regions=c("usa"), fill=T, col="grey8", bg="white", ylim=c(21.0,50.0), xlim=c(-130.0,-65.0))
+#overlay airports
+points(Dtable$lon,Dtable$lat, pch=3, cex=0.1, col="chocolate1")
+
+for (i in (1:dim(Dtable)[1])) { 
+inter <- gcIntermediate(c(-97.6698989868164, 30.194499969482422), c(Dtable$lonD[i], Dtable$latD[i]), n=100)
+
+lines(inter, lwd=0.1, col="turquoise2")    
+}
+```
+
+### Big Picture
+
+* Green = Flights Arriving in Austin
+* Red = Flights Departing from Austin
+
+```{r, Q2 big pic, echo=FALSE, fig.align='center',echo=FALSE}
+table = merge(Dtable, codes, by.x='Origin' , by.y = "iata_code", all.x = TRUE)
+
+table = table %>%
+  separate('coordinates', into = c('latO', 'lonO'), sep=",")
+table = transform(table, lonO = as.numeric(lonO),
+          latO = as.numeric(latO))
+
+#create basemap
+map("world", regions=c("usa"), fill=T, col="grey8", bg="white", ylim=c(21.0,50.0), xlim=c(-130.0,-65.0))
+#overlay airports
+points(Dtable$lon,Dtable$lat, pch=3, cex=0.1, col="chocolate1")
+
+for (i in (1:dim(Dtable)[1])) { 
+inter1 <- gcIntermediate(c(-97.6698989868164, 30.194499969482422), c(table$lonD[i], table$latD[i]), n=100)
+lines(inter1, lwd=0.1, col="red4") 
+
+inter2 <- gcIntermediate(c(-97.6698989868164, 30.194499969482422), c(table$lonO[i], table$latO[i]), n=100)
+lines(inter2, lwd=0.1, col="mediumseagreen") 
+}
+```
 
 # **Question 3** Portfolio Modeling
 
-```{r, document setup, echo=FALSE, include=FALSE}
+```{r, Q3 document setup, echo=FALSE, include=FALSE}
 rm(list = ls())
 library(mosaic)
 library(quantmod)
@@ -32,13 +553,13 @@ library(formattable)
 
 We assessed three different portfolios VaR:
 
-* Income Focused Portfolio
-- A portfolio made up of *5 EFTs* with high dividend payout. 
-* Tech Portfolio
-- A portfolio made up of *5 EFTs* focused on technology equities.
-- As a reminder, the tech industry is very volatile.
-* Balanced Portfolio 
-- A portfolio made up of *7 EFTs* focused on balanced and diversification. 
+* **Income Focused Portfolio**
+  + A portfolio made up of *5 EFTs* with high dividend payout. 
+* **Tech Portfolio**
+  + A portfolio made up of *5 EFTs* focused on technology equities.
+  + As a reminder, the tech industry is very volatile.
+* **Balanced Portfolio**
+  + A portfolio made up of *7 EFTs* focused on balanced and diversification. 
 
 ```{r,Portfolio Fixed Values, echo=FALSE, include=FALSE}
 n_days = 20
@@ -372,7 +893,7 @@ Cluster ten had high scores in *health nutrition*, *outdoors*, and *personal fit
 
 To better picture these clusters, I put together a plot for each cluster (excluding Bots & Uncharacterized) showing dots for different users along the scale of two primary factors. Each dot is colored in with the cluster. You will see for each graph, the cluster being highlighted dominates the graph!
 
-```{r, Q4 Cluster Plots , echo=FALSE, fig.show="hold", out.width="25%"}
+```{r, Q4 Cluster Plots , echo=FALSE, fig.show="hold", out.width="50%"}
 #Qplot for each cluster...
 
 qplot(travel, computers, data=social, color=factor(clusters$cluster), main = 'Cluster 1: Working Professionals')
@@ -411,8 +932,424 @@ data.frame('Cluster' = 1:10,
 While we would ideally trim down the uncharacterized users to a unique group, increasing the number of clusters makes other categories too small (less than 2%) and therefore take away from the overall effectivness of market segmentation for business implenetation. 
 
 # **Question 5** Author Attribution
+TASK: predict the author of an article based on textual content
+
+## Data Pre-Processing 
+The process of analyzing text is cumbersome and at times, confusing. 
+
+### Step 1: Import Libraries 
+We imported the following libraries: *tm, magrittr, slam, proxy, tibble, dplyr*. Please import.
+
+```{r, Q5 setup, echo=FALSE, include=FALSE}
+rm(list = ls())
+
+library(tm) 
+library(magrittr)
+library(slam)
+library(proxy)
+library(tibble)
+library(dplyr)
+```
+
+### Step 2: Set Up Reader Function
+
+We were given 50 articles from each of the 50 different authors (in different folders or directories) in text documents. The *tm* library has many reader functions, we will use *readPlain* for our text documents. However, to easier analyze, we will wrap the readPlain function to ensure the lines are being read in English: 
+
+```{r, Q5 reader function, echo=FALSE, include=FALSE}
+### SETUP READER FUNCTION
+readerPlain = function(fname){
+  readPlain(elem=list(content=readLines(fname)),
+            id=fname, language='en') }
+```
+
+### Step 3: Read in Documents
+We have 50 different folders (one for every author) each with 50 different documents. We want to extract the names of each of these documents so we can read each of them in. We will need to do the following:
+
+* Set working directory to outside file location (the folder where train and test folders sit)
+
+```{r, Q5 set working directory, echo=FALSE, include=FALSE}
+setwd("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2/STA380-master/data/ReutersC50")
+```
+
+* For both train and test, make a list of the 50 directories within those folders
+  + Reminder: each directory is a different author name!
+
+```{r, Q5 directories, echo=FALSE, include=FALSE}
+list_train = list.dirs("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2/STA380-master/data/ReutersC50/C50train",recursive = FALSE)
+
+list_test = list.dirs("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2/STA380-master/data/ReutersC50/C50test",recursive = FALSE)
+
+```
+
+* Iterate over the 50 directories and add each file's name to a singular list (separate lists for test and train)
+  + This means pasting the directory names in and adding a wildcard into the filename path ('globbing')
+
+```{r, Q5 read messy files, echo=FALSE, include=FALSE}
+#TRAIN
+file_list_train = character()
+
+for(i in list_train){
+  xx = Sys.glob(paste(i,'/*txt',sep = ''))
+  file_list_train = c(xx,file_list_train)
+}
+
+# TEST
+file_list_test = character()
+
+for(i in list_test){
+  xx = Sys.glob(paste(i,'/*txt',sep = ''))
+  file_list_test = c(xx,file_list_test)
+}
+
+```
+
+* Apply reader function to these list to read in files
+
+```{r, Q5 apply reader function, echo=FALSE, include=FALSE}
+routers_train = lapply(file_list_train, readerPlain)
+
+routers_test = lapply(file_list_test, readerPlain)
+```
+
+* Clean list of names so that directory is not included in title and rename the articles in vector
+
+```{r, Q5 get file names, echo=FALSE, include=FALSE}
+trainnames = file_list_train %>%
+	{ strsplit(., '/', fixed=TRUE) } %>%
+	{ lapply(., tail, n=2) } %>%
+	{ lapply(., paste0, collapse = '') } %>%
+	unlist
+
+testnames = file_list_test %>%
+	{ strsplit(., '/', fixed=TRUE) } %>%
+	{ lapply(., tail, n=2) } %>%
+	{ lapply(., paste0, collapse = '') } %>%
+	unlist
 
 
+names(routers_train) = trainnames
+names(routers_test) = testnames
+```
+
+* From each vector (train and test), create a text mining corpus
+
+```{r, Q5 create corpus, echo=FALSE, include=FALSE}
+documents_raw_train = Corpus(VectorSource(routers_train))
+documents_raw_test = Corpus(VectorSource(routers_test))
+```
+
+### Step 4: Clean Document
+For both corpus 'documents', we must clean it up for more clean analysis:
+
+* Remove capitalization
+* Remove numbers
+* Remove punctuation
+* Remove extra white spaces
+* Remove stop words (basic words like I, the, etc.) that are common English
+
+```{r, Q5 clean doc, echo=FALSE, include=FALSE}
+### CLEANUP DOCUMENTS
+train_document = documents_raw_train %>%
+  tm_map(content_transformer(tolower))  %>%             # make everything lowercase
+  tm_map(content_transformer(removeNumbers)) %>%        # remove numbers
+  tm_map(content_transformer(removePunctuation)) %>%    # remove punctuation
+  tm_map(content_transformer(stripWhitespace))
+
+train_document = tm_map(train_document, content_transformer(removeWords), stopwords("en"))
+
+test_document = documents_raw_test %>%
+  tm_map(content_transformer(tolower))  %>%             # make everything lowercase
+  tm_map(content_transformer(removeNumbers)) %>%        # remove numbers
+  tm_map(content_transformer(removePunctuation)) %>%    # remove punctuation
+  tm_map(content_transformer(stripWhitespace))
+
+test_document = tm_map(test_document, content_transformer(removeWords), stopwords("en"))
+```
+
+### Step 5a: FOR TRAIN: create term matrix and remove sparse data 
+There is a lot of noise within these documents with many words appearing very little. To remove the noise for better analysis, we removed those terms that have count 0 in >90% of docs. This made our matrix shrink exponentially from over 80 million entries (32K+ terms for 2,500 documents) to less than 1 million (396 terms for the 2,500 documents).
+
+```{r, Q5 create train mat, echo=FALSE, include=FALSE}
+### CREATE MATRIX
+routers_train_MAT = DocumentTermMatrix(train_document)
+routers_train_MAT = removeSparseTerms(routers_train_MAT, 0.90)
+```
+
+### Step 5b: FOR TEST: Create term matrix
+For our test matrix, we only included words that were in the train test for a clean analysis.
+
+```{r, Q5 create test mat, echo=FALSE, include=FALSE}
+routers_test_MAT = DocumentTermMatrix(test_document, control = list
+               (dictionary=Terms(routers_train_MAT)) )
+```
+
+### Step 6: Construct TF IDF weights
+To note, we will use these weights in SOME but not all of our models. It helps 'normalizes' the terms of each document so that the length of the document does not skew results.
+
+```{r, Q5 IDF weights, echo=FALSE, include=FALSE}
+train_weights = weightTfIdf(routers_train_MAT)
+test_weights = weightTfIdf(routers_test_MAT)
+```
+
+## Analyzing with Various Models
+
+### PCA (using TF IDF weights) so we can feed into LOGISTIC REGRESSION & RANDOM FOREST
+Our goal here is to narrow down our almost 400 terms even further. There is a balance between complexity and 
+```{r, Q5 PCA setup, echo=FALSE, incude= FALSE}
+X = as.matrix(train_weights)
+scrub_cols = which(colSums(X) == 0)
+X = X[,-scrub_cols]
+
+pca_routers_train = prcomp(X, scale=TRUE)
+pve_train = summary(pca_routers_train)$importance[3,]
+```
+
+```{r, Q5 PCA elbow, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+plot(pve_train,
+     ylab = '% Variance Explained',
+     xlab = 'Number of Principal Components',
+     main = 'PCA "Elbow" Chart')
+```
+*We are going to consider 140 parameters, which explain close to 60% of the variance*
+
+Thus, we need to narrow down a test and train matrices with PCA:
+
+* Select the 140 PCA components on train test (x train values)
+* Predict the 140 components on the test (x test values)
+* Extract Author names for both test and train (our y values)
+
+```{r, Q5 pac train and test, echo=FALSE, include=FALSE}
+trainPCA = pca_routers_train$x[,1:140]
+testPCA = predict(pca_routers_train,newdata =as.matrix(test_weights))[,1:140]
+
+train_authors = file_list_train %>%
+	{ strsplit(., '/', fixed=TRUE) } %>%
+	{ lapply(., tail, n=2) } %>%
+  { lapply(., head, n=1) } %>%
+	{ lapply(., paste0, collapse = '') } %>%
+	unlist
+
+test_authors = file_list_test %>%
+	{ strsplit(., '/', fixed=TRUE) } %>%
+	{ lapply(., tail, n=2) } %>%
+  { lapply(., head, n=1) } %>%
+	{ lapply(., paste0, collapse = '') } %>%
+	unlist
+```
+
+### Logistic Regression on PCA
+Using Logistic Regression on our PCA Components, we get the following accuracy:
+
+```{r, Q5 fit and predict logReg, echo=FALSE, include=FALSE}
+library(nnet)
+
+logistic_fit = nnet::multinom(train_authors~.,data = as.data.frame(trainPCA),MaxNWts = 20000)
+predicted_author = logistic_fit %>% predict(as.data.frame(testPCA))
+
+```
+```{r, Q5 logReg accuracy, echo=FALSE}
+pca_logReg_accuracy = mean(predicted_author == test_authors)
+pca_logReg_accuracy
+```
+
+### Random Forest
+Using Random Forest on our PCA Components, we get the following accuracy:
+
+```{r, Q5 random forest, echo=FALSE, include=FALSE}
+library(randomForest)
+
+rf_fit = randomForest(as.factor(train_authors)~.,data =as.data.frame(trainPCA),ntree = 1000, mtry =  50, importance = TRUE)
+rf_predicted = predict(rf_fit,newx = test, type = 'response')
+
+```
+
+```{r, Q5 random forest accuracy, echo=FALSE}
+pca_randomForest_accuracy = mean(rf_predicted == test_authors)
+pca_randomForest_accuracy
+```
+
+### Naive Bayes
+Using Naive Bayes on our PCA Components, we get the following accuracy:
+
+```{r, Q5 naive bayes, echo=FALSE, include=FALSE}
+library (naivebayes)
+
+nb_fit =naive_bayes(as.factor(train_authors) ~., data=as.data.frame(trainPCA))
+nb_pred = predict(nb_fit,testPCA)
+
+```
+
+```{r, Q5 naive bayes accuracy, echo=FALSE}
+pca_NB_accuracy = mean(nb_pred == test_authors)
+pca_NB_accuracy
+```
+
+## Conclusion:
+Considering the three models we ran, we found that Random Forest is the most accurate model.
 
 # **Question 6 ** Association Rule Mining
 
+```{r, Q6 setup, echo=FALSE, include=FALSE}
+rm(list = ls())
+
+library(ggplot2)
+library(dplyr)
+library(plyr)
+library(arules)
+library(arulesViz)
+
+setwd("~/SUMMER 2021/STA 380 - Intro to Machine Learning/Exercies pt. 2/STA380-master/data/")
+filename = 'groceries.txt'
+groceries_raw = read.csv(filename, header = FALSE)
+```
+
+## Set up one dataframe
+Our data was in a messy table, so in order to analyze, we put all items in one column and their basket number in the second.
+
+```{r, Q6 data, echo=FALSE, include=FALSE}
+groceries_play = groceries_raw
+groceries_play$basket = rownames(groceries_play)
+
+
+df1 =groceries_play[,c(1,5)]
+colnames(df1) = c("items","basket")
+df2 =groceries_play[,c(2,5)]
+colnames(df2) = c("items","basket")
+df3 =groceries_play[,c(3,5)]
+colnames(df3) = c("items","basket")
+df4 =groceries_play[,c(4,5)]
+colnames(df4) = c("items","basket")
+
+
+groceries = rbind(df1,df2,df3,df4)
+groceries = groceries[groceries$items != '',]
+na.omit(groceries)
+
+```
+
+## Most popular items
+
+```{r, Q6 most popular items, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+counts = count(groceries, 'items')
+
+counts %>%
+  arrange(desc(freq))%>%
+  slice(1:20) %>%
+  ggplot(., aes(x=reorder(items, -freq), y=freq, fill= items)) + 
+  geom_bar(stat='identity') +
+  labs(title="Top 20 Purchased Grocery Items",x="Item", y = "Frequency")+ 
+  theme_classic() +
+  theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+```
+
+## Set up Association Rules
+Depending on the levels of support and confidence we use, a different number of rules will be outputted. We landed on using a support of 0.005 and confidence of 0.05. This narrowed down our rules to 181. 
+
+```{r, Q6 rule setup, echo=FALSE, include = FALSE}
+groceries$basket = factor(groceries$basket)
+
+groceries_new = split(x=groceries$items, f=groceries$basket)
+groceries_new = lapply(groceries_new, unique)
+
+grocery_trans = as(groceries_new, "transactions")
+
+basketrules = apriori(grocery_trans, 
+                     parameter=list(support=.005, confidence=.05))
+
+table = arules::inspect(head(sort(basketrules, by = 'lift', decreasing = TRUE),15))
+```
+
+Even by narrowing down to 180 rules, we still have a lot of rules going on. We will break it down farther.
+
+```{r, Q6 visual total setup, echo=FALSE, inlcude = FALSE}
+total_association = plot(basketrules, by = "lift", method = 'graph', max = 500)
+```
+
+```{r, Q6 visualize, echo=FALSE, fig.align='center'}
+total_association
+```
+
+## Most Correlated Items (high lift) 
+First, we examined the top 15 association rules by lift - meaning the highest correlated items. We can see it is a lot of fruit and vegetable items together. This aligns to how grocery stores group produce together.
+
+```{r, Q6 high lift table, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+table
+```
+
+## Individual Item Analysis
+Next, we examined what people are buying with our most frequently bought items. Below are a few interesting findings:
+
+### Whole Milk
+We see people that buy vegetables and tropical fruit. We should keep the milk close to the produce section.
+
+```{r, Q6 milk basket, echo=FALSE, include = FALSE}
+milk_basket =  apriori (grocery_trans, parameter=list (supp=0.001,conf = 0.001,minlen = 2), appearance = list(default="lhs",rhs="whole milk"))
+
+milk_examination = plot(head(milk_basket, n = 15, by = "lift"), method = 'graph', measure  = c("lift"))
+```
+
+```{r, Q6 milk basket output, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+milk_examination
+```
+
+### Rolls/ Buns:
+People who buy sausage, soda, and cheeses tend to also buy rolls/ buns. It may be beneficial to have a small shelf of bread or maybe an entire bakery section near a meat and cheese section. 
+
+```{r, Q6 rolls basket, echo=FALSE, include = FALSE}
+rollsbuns_basket =  apriori (grocery_trans, parameter=list (supp=0.001,conf = 0.001,minlen = 2), appearance = list(default="lhs",rhs="rolls/buns"))
+
+rolls_examination = plot(head(rollsbuns_basket, n = 15, by = "lift"), method = 'graph', measure  = c("lift"))
+```
+
+```{r, Q6 rolls basket output, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+rolls_examination
+```
+
+### Pastry:
+People who buy other breads and a few dairy products tend to buy pastries. Again, why a bakery and meat & cheese section together would be beneficial.
+
+```{r, Q6 pastry basket, echo=FALSE, include = FALSE}
+pastry_basket =  apriori (grocery_trans, parameter=list (supp=0.001,conf = 0.001,minlen = 2), appearance = list(default="lhs",rhs="pastry"))
+
+pastry_examination = plot(head(pastry_basket, n = 15, by = "lift"), method = 'graph', measure  = c("lift"))
+```
+
+```{r, Q6 pastry basket output, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+pastry_examination
+```
+
+### Soda:
+People who buy other drinks such as bottled water, beer and juices tend to also buy soda. So, it is helpful to have a drink section in a store where you find all drinks.
+
+```{r, Q6 soda basket, echo=FALSE, include = FALSE}
+soda_basket =  apriori (grocery_trans, parameter=list (supp=0.001,conf = 0.001,minlen = 2), appearance = list(default="lhs",rhs="soda"))
+
+soda_examination = plot(head(soda_basket, n = 15, by = "lift"), method = 'graph', measure  = c("lift"))
+```
+
+```{r, Q6 soda basket output, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+soda_examination
+```
+
+### Shopping Bags:
+People who buy more 'random' items such as cake, hygiene products, wine, and plants tend to buy shopping bags. Instead of just having shopping bags at check out, it may be beneficial to also have bags throughout the store, specifically along the hygiene and paper products section of the store along with near the bakery. 
+
+```{r, Q6 bag basket, echo=FALSE, include = FALSE}
+bags_basket =  apriori (grocery_trans, parameter=list (supp=0.001,conf = 0.001,minlen = 2), appearance = list(default="lhs",rhs="shopping bags"))
+
+bags_examination = plot(head(bags_basket, n = 15, by = "lift"), method = 'graph', measure  = c("lift"))
+```
+
+```{r, Q6 bag basket output, echo=FALSE, fig.align='center', fig.show="hold", out.width="50%"}
+bags_examination
+```
+
+## Conclusion
+Let's take a look back at the overall visual of the rules. After looking at a few patterns above, it is easier to see the groups within this big association visualization. Additionally, we also see newspaper is off to the side - a lot of people come in and just buy that? Let's have this right by the checkout areas.
+
+```{r, Q6 conclusion, echo=FALSE, fig.align='center'}
+total_association
+```
+
+While many people come in and buy a variety of things, by examining the associations between basket items, we can efficiently and effectively organize a grocery store. 
